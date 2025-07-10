@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import json
 from docx import Document
-from extractor import extract_text_from_pdf, extract_text_from_docx
+from extractor import extract_text_from_pdf
 # from flask_cors import CORS
 
 app = Flask(__name__)
@@ -31,8 +31,8 @@ def upload_file():
 
     if ext == 'pdf':
         extracted_text = extract_text_from_pdf(file_path)
-    elif ext == 'docx':
-        extracted_text = extract_text_from_docx(file_path)
+    #elif ext == 'docx':
+        #extracted_text = extract_text_from_docx(file_path)
     else:
         return jsonify({'error': 'Unsupported file type'}), 400
 
@@ -50,9 +50,7 @@ def upload_file():
         json.dump(output_data, f, ensure_ascii=False, indent=2)
 
     return jsonify({
-        'message': 'File uploaded and JSON saved successfully',
         'file': json_filename,
-        'path': json_path,
         'preview': extracted_text  
     })
 
