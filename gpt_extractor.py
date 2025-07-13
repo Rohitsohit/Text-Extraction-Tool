@@ -9,13 +9,17 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def extract_field_information(page_text):
     prompt=build_final_document_prompt(page_text)
+
+    
     response = client.chat.completions.create(
-    model="gpt-4",
+    model="gpt-4-1106-preview",
     messages=[
         {"role": "system", "content": "You are an intelligent document extraction assistant."},
         {"role": "user", "content": prompt.strip()}
     ],
     temperature=0.2
     )
+
+    # print(response.choices[0].message.content)
     
     return response.choices[0].message.content

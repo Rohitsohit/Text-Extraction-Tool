@@ -3,10 +3,10 @@ import os
 import json
 from docx import Document
 from extractor import extract_text_from_pdf
-# from flask_cors import CORS
+from flask_cors import CORS
 
 app = Flask(__name__)
-# CORS(app)
+CORS(app)
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'output'  # Folder where you will save the JSON files
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
