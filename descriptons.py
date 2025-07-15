@@ -112,7 +112,6 @@ Expected Output:
   - “an album entitled ‘XYZ’”
 """
 
-
 client_party_description = """
 Extract the **Client Party** from the agreement. This is the individual or entity being addressed in the contract, and will almost always appear in the **opening paragraph**.
 
@@ -183,7 +182,6 @@ Expected Output:
 - A **list of entity names** representing alternative counterparties, if present.
 
 """
-
 
 recoupment_language_description = """
 Extract the section(s) from the document that define when and how the Producer becomes eligible for royalty payments, based on recoupment of certain costs.
@@ -258,31 +256,70 @@ Expected Output:
 
 """
 
+
 label_description = """
-Extract the **Label** referenced in the agreement. This is often defined as “Label” but may also appear implicitly through associated terms or structures.
+Extract the **Label Owned By** value from the agreement. This identifies the **parent company** or **ownership structure** of the label associated with the release.
 
-What to look for:
-- Explicit phrases such as:
-  - “Label”
-  - “owned by [Parent Company]”
-  - “released by [Label Name]”
-  - “a division of [Parent Company]”
-- Common clause formats:
-  - “[Label Name], a division of [Company]”
-  - “[Label Name] (“Label”)”
-  - “Label: [Entity]”
+---
 
-Heuristic:
-- If not explicitly labeled as “Label”, but one entity is described with ownership or distribution context (e.g., “released by Atlantic Records”), you may assume that entity is the **Label**.
-- If **Distributor** is mentioned and **Label** is not, and there’s no conflict, it is often safe to assume they are the same.
+🧠 What to Look For:
+You are trying to determine which **larger company owns or controls** the label mentioned in the contract. Ownership is usually mentioned explicitly or can be inferred from phrasing.
 
-Database Matching:
-- Cross-reference the extracted name with a pre-loaded list of known Labels for validation (e.g., “Atlantic Records”, “Empire”, “Republic”, “The Orchard”).
+---
 
-Expected Output:
-- The **name of the label** (e.g., “Atlantic Records”)
+🔍 Common Ownership Phrases (High Confidence):
+Look for these patterns where a label name is followed by an ownership relationship:
+- "[Label Name], a division of [Parent Company]"
+- "[Label Name], owned by [Parent Company]"
+- "[Label Name], an imprint of [Parent Company]"
+- "[Label Name] (a wholly owned subsidiary of [Parent Company])"
+- "[Label Name] is distributed by [Parent Company]"
 
+---
+
+📌 Common Keywords (Search Around These):
+- “a division of”
+- “owned by”
+- “controlled by”
+- “an imprint of”
+- “under”
+- “released by”
+- “distributed by”
+- “subsidiary of”
+- “label group”
+
+---
+
+💡 Heuristic Matching (Medium Confidence):
+- If explicit ownership is not mentioned, but the **label is a known industry name**, use a preloaded label-to-parent mapping (e.g., "Republic Records" → "Universal Music Group").
+
+- If multiple entities are mentioned (e.g., distributor and label), prioritize **label → parent** relationships.
+
+---
+
+📄 Examples:
+- “Atlantic Records, a division of Warner Music Group”
+- “Released by Alamo Records, under Sony Music Entertainment”
+- “XYZ Label, owned and controlled by Universal Music Group”
+- “Cactus Jack is an imprint of Epic Records, a division of Sony Music”
+
+---
+
+✅ Expected Output:
+Return only the **name of the parent company**:
+- "Warner Music Group"
+- "Universal Music Group"
+- "Sony Music Entertainment"
+
+---
+
+❌ If no ownership or matching information is found, return:
+{
+  "field": "Label Owned By",
+  "value": "Not Found"
+}
 """
+
 
 lawyer_information_description = """
 Extract the **Lawyer Information** from the agreement. These will typically be listed using the label **“C/O”** (care of), and there are usually **two parties** listed.
@@ -402,28 +439,6 @@ Important: If you're not highly confident based on the explicit text, do not gue
 """
 
 
-organization_counting_sales_units_description = """
-Extract the **unit of measurement** used to count sales for royalty calculations — such as "units," "albums," "downloads," or "streams."
-
-Look for definitions or references to **USNRC Net Sales** or similar phrases that describe what counts as a sale. You do NOT need to extract the full paragraph — only the **unit** used for sales measurement.
-
-Key phrases to look for:
-- "USNRC Net Sales"
-- "Net Sales (USNRC)"
-- "sales through normal retail channels"
-- "each album sold"
-- "per download"
-- "streamed units"
-
-The correct output should be a **single word or phrase** representing the sales unit, such as:
-- "units"
-- "albums"
-- "digital downloads"
-- "streams"
-- "physical records"
-
-"""
-
 third_party_money_description = """
 Extract the **single monetary amount or percentage** that represents the share of royalties to be paid to a third party, such as a Producer, Mixer, or Co-producer.
 
@@ -442,25 +457,29 @@ If multiple values are listed, prioritize the **clearest standalone percentage o
 """
 
 organization_counting_sales_units_description = """
-Extract the **unit of measurement** used to count sales for royalty calculations — such as "units," "albums," "downloads," or "streams."
+Extract the **Organization Counting Units** used for measuring sales in the agreement.
 
-Look for definitions or references to **USNRC Net Sales** or similar phrases that describe what counts as a sale. You do NOT need to extract the full paragraph — only the **unit** used for sales measurement.
+You are specifically looking to determine whether the contract uses **USNRC (U.S. Normal Retail Channels)** as the unit tracking method.
 
-Key phrases to look for:
-- "USNRC Net Sales"
-- "Net Sales (USNRC)"
-- "sales through normal retail channels"
-- "each album sold"
-- "per download"
-- "streamed units"
+ Valid output values:
+- "USNRC"
+- "Not Found"
 
-The correct output should be a **single word or phrase** representing the sales unit, such as:
-- "units"
-- "albums"
-- "digital downloads"
-- "streams"
-- "physical records"
+What to look for:
+- Exact mentions of:
+  - "USNRC Net Sales"
+  - "Net Sales (USNRC)"
+  - "sales through U.S. Normal Retail Channels"
+  - “Net Sales through normal retail channels in the United States”
+- The term USNRC is sometimes written with or without punctuation (e.g., "U.S.N.R.C.")
 
+Your task:
+- If **any of the above phrases** are found in reference to sales units, return `"USNRC"`
+- If not, return:
+{
+  "field": "Organization Counting Units",
+  "value": "Not Found"
+}
 """
 
 
@@ -486,6 +505,54 @@ If no such amount is found, return:
 """
 
 
+recoupment_classification_description = """
+Extract the **Producer Advance Recoupment Classification** from the agreement.
+
+You are looking for a **brief descriptive phrase** that appears **immediately before or after the producer advance amount** (e.g., "$10,000"). This phrase classifies how the advance is recouped by the company.
+
+Valid values:
+- "non-returnable recoupable"
+- "partially-recoupable"
+- "fully-recoupable"
+
+What to look for:
+- Sentences or clauses that include phrases like:
+  - "The Advance shall be fully-recoupable..."
+  - "This shall be treated as a non-returnable recoupable advance..."
+  - "Advance shall be partially-recoupable from..."
+- Focus on text **directly adjacent to the advance amount**
+
+ Do NOT extract the full sentence. Return only one of the **three exact classification values** above.
+{
+  "field": "Recoupment Classification",
+  "value": "Not Found"
+}
+"""
+ 
+
+legal_advance_recoupment_description = """
+Extract the **Legal Advance Recoupment** amount from the agreement. This is the **specific dollar amount** paid to the artist as a legal advance.
+
+What to look for:
+- A sentence or clause describing a **legal advance**
+- This will always include a **specific number** (e.g., "$5,000", "$10,000", "USD 2,500")
+- Common keywords nearby:
+  - "legal advance"
+  - "advance for legal fees"
+  - "advance for attorney"
+  - "legal fee advance"
+  - "contribution toward legal costs"
+
+Your task:
+- Extract **only the monetary value** (e.g., "$5,000")
+- Do **not** include the surrounding sentence or explanation
+
+If no such legal advance amount is found, return:
+{
+  "field": "Legal Advance",
+  "value": "Not Found"
+}
+"""
 
 
 ##########################################################################################

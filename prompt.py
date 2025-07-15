@@ -1,29 +1,11 @@
-from descriptons import document_name_description,producer_royalty_points_description,type_of_royalty_description,lawyer_information_description,label_description,distributor_description,effective_date_description,alternative_counterparties_description,direct_counterparty_description,client_party_description,single_or_multisong_line_description,execution_status_description,artist_name_description,song_title_description,recoupment_language_description,international_sales_policy_description,organization_counting_sales_units_description,producer_advance_legal_recoupment_description,third_party_money_description,bumps_description
+from descriptons import document_name_description,legal_advance_recoupment_description,recoupment_classification_description,producer_royalty_points_description,type_of_royalty_description,lawyer_information_description,label_description,distributor_description,effective_date_description,alternative_counterparties_description,direct_counterparty_description,client_party_description,single_or_multisong_line_description,execution_status_description,artist_name_description,song_title_description,recoupment_language_description,international_sales_policy_description,organization_counting_sales_units_description,producer_advance_legal_recoupment_description,third_party_money_description,bumps_description
 
 
 field_descriptions_details = {
-    "Document Name": document_name_description,
-    "Execution Status": execution_status_description,
-    "Song Title": song_title_description,
-    "Artist Name": artist_name_description,
-    "Single/Multisong Line": single_or_multisong_line_description,
-    "Client Party": client_party_description,
-    "Direct Counterparty": direct_counterparty_description,
-    "Alternative Counterparties": alternative_counterparties_description,
-    "Classification of Recoupment Language": recoupment_language_description,
-    "Effective Date":effective_date_description,
-    "Distributor": distributor_description,
-    "Label": label_description,
-    "Lawyer Information": lawyer_information_description,
-    "Producer Royalty Points": producer_royalty_points_description,
-    "Type of Royalty (NAR or PPD)": type_of_royalty_description,
-    "Bumps": bumps_description,
-    "Third Party Money":third_party_money_description,
-    "Producer Advance": producer_advance_legal_recoupment_description,
-    "Producer Advance Recoupment Classification": "Appears before/after Advance. Mentions recoupment policy, e.g., 'Advance shall be recoupable...'.",
-    "Producer Advance Legal Recoupment": "Sentences describing legal treatment of Advance, e.g., 'Advance deemed fully recoupable'.",
+
+    "Label owner": label_description,
+    "Recoupment Classification": recoupment_classification_description,
     "Organization Counting Sales Units": organization_counting_sales_units_description,
-    "International Sales Policy": international_sales_policy_description
 }
 
 
