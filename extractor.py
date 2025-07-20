@@ -1,12 +1,8 @@
 # extractor.py
-
 import fitz
-from docx import Document
 from gpt_extractor import extract_field_information
-from field_descriptions import field_descriptions_details
 import json
 import re
-
 
 #  PDF extractor with page + context
 def extract_text_from_pdf(file_path):
@@ -19,7 +15,7 @@ def extract_text_from_pdf(file_path):
         cleaned = ' '.join(page.get_text().split())
         pages_text[page_num] = cleaned 
 
-       
+    print("************ ++++++++ =======Extracted data : ",pages_text.items())   
     open_ai_Data = extract_field_information(pages_text)
 
     if open_ai_Data and open_ai_Data.strip() not in ["", "{}", "None"]:

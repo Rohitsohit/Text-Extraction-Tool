@@ -14,6 +14,9 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Make sure the output folder exists
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+JSON_FILE = "field_descriptions.json"
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -53,6 +56,61 @@ def upload_file():
         'file': json_filename,
         'preview': extracted_text  
     })
+
+
+
+@app.route("/get_fields", methods=["GET"])
+def get_fields():
+    if os.path.exists(JSON_FILE):
+        with open(JSON_FILE, "r") as f:
+            return jsonify(json.load(f))
+    return jsonify({})
+
+
+
+@app.route("/add_field", methods=["POST"])
+def update_field():
+    data = request.get_json()
+    field = data.get("field")
+    value = data.get("value")
+    print(data)
+    if not field or not value:
+        return jsonify({"error": "Missing 'field' or 'value'"}), 400
+
+    # Load existing data
+    if os.path.exists(JSON_FILE):
+        with open(JSON_FILE, "r") as f:
+            json_data = json.load(f)
+    else:
+        json_data = {}
+
+    # Update field
+    json_data[field] = value
+
+    # Save back to file
+    with open(JSON_FILE, "w") as f:
+        json.dump(json_data, f, indent=4)
+
+    return jsonify({"message": "Field updated successfully"}), 200
+
+
+@app.route("/delete_field/<field_key>", methods=["DELETE"])
+def delete_field(field_key):
+    if os.path.exists(JSON_FILE):
+        with open(JSON_FILE, "r") as f:
+            json_data = json.load(f)
+    else:
+        return jsonify({"error": "File not found"}), 404
+
+    if field_key not in json_data:
+        return jsonify({"error": "Field not found"}), 404
+
+    del json_data[field_key]
+
+    with open(JSON_FILE, "w") as f:
+        json.dump(json_data, f, indent=4)
+
+    return jsonify({"message": f"Field '{field_key}' deleted"}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -20,6 +20,7 @@ def extract_field_information(page_text):
     temperature=0.2
     )
 
-    # print(response.choices[0].message.content)
+    print(response.choices[0].message.content)
     
+    # return prompt
     return response.choices[0].message.content

@@ -1,12 +1,11 @@
-from descriptons import document_name_description,legal_advance_recoupment_description,recoupment_classification_description,producer_royalty_points_description,type_of_royalty_description,lawyer_information_description,label_description,distributor_description,effective_date_description,alternative_counterparties_description,direct_counterparty_description,client_party_description,single_or_multisong_line_description,execution_status_description,artist_name_description,song_title_description,recoupment_language_description,international_sales_policy_description,organization_counting_sales_units_description,producer_advance_legal_recoupment_description,third_party_money_description,bumps_description
+import json
 
 
-field_descriptions_details = {
 
-    "Label owner": label_description,
-    "Recoupment Classification": recoupment_classification_description,
-    "Organization Counting Sales Units": organization_counting_sales_units_description,
-}
+# Load field descriptions from JSON file
+with open("field_descriptions.json", "r", encoding="utf-8") as f:
+    field_descriptions_details = json.load(f)
+
 
 
 def build_final_document_prompt(pages_text: dict) -> str:
