@@ -1,2 +1,13 @@
 uploads/
+.env
+__pycache__/
+output/
+.DS_Store
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.swo
+.idea/
+.vscode/
 .env/
