@@ -64,8 +64,8 @@ def upload_file():
 
 
     if ext == 'pdf':
-        extracted_text = "file saved in s3"
-        # extracted_text = extract_text_from_pdf(tmp_path)
+        # extracted_text = "file saved in s3"
+        extracted_text = extract_text_from_pdf(tmp_path)
     #elif ext == 'docx':
         #extracted_text = extract_text_from_docx(file_path)
     else:
@@ -177,6 +177,10 @@ def delete_field(field_key):
         json.dump(json_data, f, indent=4)
 
     return jsonify({"message": f"Field '{field_key}' deleted"}), 200
+
+# if __name__ == '__main__':
+#     app.run(debug=True)
+
 
 def lambda_handler(event, context):
     return awsgi.response(app, event, context)
