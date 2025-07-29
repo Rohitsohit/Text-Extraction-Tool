@@ -1,7 +1,9 @@
+import awsgi
 from flask import Flask, request, jsonify
 import os
 import json
-from docx import Document
+import boto3
+from botocore.exceptions import NoCredentialsError
 import requests
 import tempfile
 from extractor import extract_text_from_pdf
@@ -13,13 +15,21 @@ UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'output'  # Folder where you will save the JSON files
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+
+# S3 configuration
+S3_BUCKET = 'extract-tool'  # Replace with your actual bucket name
+s3 = boto3.client('s3')
+
+
 # Make sure the output folder exists
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 JSON_FILE = "field_descriptions.json"
 
 
-
+@app.route('/test', methods=['GET'])
+def testing():
+    return jsonify({"Git deploy working"}), 200
 
 
 @app.route('/upload', methods=['POST'])
@@ -32,37 +42,43 @@ def upload_file():
         return jsonify({'error': 'No selected file'}), 400
 
     filename = file.filename
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(file_path)
     
     ext = filename.rsplit('.', 1)[-1].lower()
 
+        # Upload file to S3
+    try:
+        s3.upload_fileobj(file, S3_BUCKET, filename)
+    except NoCredentialsError:
+        return jsonify({'error': 'S3 credentials not found'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Failed to upload to S3: {str(e)}'}), 500
+
+    # Download from S3 to temp file for processing
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.' + ext) as tmp:
+        try:
+            s3.download_file(S3_BUCKET, filename, tmp.name)
+        except Exception as e:
+            return jsonify({'error': f'Failed to download from S3: {str(e)}'}), 500
+        tmp_path = tmp.name
+
+
+
     if ext == 'pdf':
-        extracted_text = extract_text_from_pdf(file_path)
+        extracted_text = "file saved in s3"
+        # extracted_text = extract_text_from_pdf(tmp_path)
     #elif ext == 'docx':
         #extracted_text = extract_text_from_docx(file_path)
     else:
+        os.remove(tmp_path)
         return jsonify({'error': 'Unsupported file type'}), 400
 
-
-    # Save JSON to file
-    output_data = {
-        'filename': filename,
-        'text': extracted_text  
-    }
-
-    json_filename = filename.rsplit('.', 1)[0] + '.json'
-    json_path = os.path.join(OUTPUT_FOLDER, json_filename)
-
-    with open(json_path, 'w', encoding='utf-8') as f:
-        json.dump(output_data, f, ensure_ascii=False, indent=2)
+    os.remove(tmp_path)
+    
 
     return jsonify({
-        'file': json_filename,
+        'file': filename,
         'preview': extracted_text  
     })
-
-
 
 # Extract text from file URL endpoint
 @app.route('/extract_from_url', methods=['POST'])
@@ -111,10 +127,6 @@ def extract_from_url():
         'url': file_url,
         'text': extracted_text
     })
-
-
-
-
 
 @app.route("/get_fields", methods=["GET"])
 def get_fields():

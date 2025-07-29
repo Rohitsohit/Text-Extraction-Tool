@@ -4,4 +4,7 @@ requests
 python-dotenv
 openai
 PyMuPDF
-docx 
+python-docx
+boto3
+botocore
+awsgi 
