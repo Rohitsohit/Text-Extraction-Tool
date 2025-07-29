@@ -178,5 +178,5 @@ def delete_field(field_key):
 
     return jsonify({"message": f"Field '{field_key}' deleted"}), 200
 
-if __name__ == '__main__':
-    app.run(debug=True)
+def lambda_handler(event, context):
+    return awsgi.response(app, event, context)
