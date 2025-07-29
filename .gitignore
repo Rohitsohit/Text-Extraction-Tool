@@ -1,13 +1,25 @@
-uploads/
+# Ignore environment and IDE files
 .env
+.env/
+.idea/
+.vscode/
+
+# Ignore Python cache and bytecode
 __pycache__/
-output/
-.DS_Store
 *.pyc
 *.pyo
 *.pyd
+
+# Ignore OS files
+.DS_Store
+
+# Ignore upload and output folders
+uploads/
+output/
+
+# Ignore AWS Lambda layer dependencies
+python/
+
+# Ignore swap files
 *.swp
 *.swo
-.idea/
-.vscode/
-.env/
