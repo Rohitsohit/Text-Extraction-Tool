@@ -1,4 +1,4 @@
-import awsgi
+import aws_wsgi
 from flask import Flask, request, jsonify
 import os
 import json
@@ -175,4 +175,4 @@ def delete_field(field_key):
 
 
 def lambda_handler(event, context):
-    return awsgi.response(app, event, context)
+    return aws_wsgi.response(app, event, context)
