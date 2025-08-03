@@ -1,4 +1,4 @@
-import aws_wsgi
+import awsgi
 from flask import Flask, request, jsonify
 import os
 import json
@@ -178,7 +178,7 @@ def lambda_handler(event, context):
     # Handle different event types
     if 'httpMethod' in event:
         # API Gateway event
-        return aws_wsgi.response(app, event, context)
+        return awsgi.response(app, event, context)
     elif 'Records' in event:
         # S3 or other AWS service event
         return {
