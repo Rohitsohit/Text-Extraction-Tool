@@ -175,4 +175,22 @@ def delete_field(field_key):
 
 
 def lambda_handler(event, context):
-    return aws_wsgi.response(app, event, context)
+    # Handle different event types
+    if 'httpMethod' in event:
+        # API Gateway event
+        return aws_wsgi.response(app, event, context)
+    elif 'Records' in event:
+        # S3 or other AWS service event
+        return {
+            'statusCode': 200,
+            'body': 'Event processed successfully'
+        }
+    else:
+        # Simple test event or other event type
+        return {
+            'statusCode': 200,
+            'body': 'Lambda function is working! Use API Gateway to access the endpoints.',
+            'headers': {
+                'Content-Type': 'application/json'
+            }
+        }
