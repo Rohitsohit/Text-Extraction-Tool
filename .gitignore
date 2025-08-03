@@ -13,13 +13,12 @@ __pycache__/
 # Ignore OS files
 .DS_Store
 
-# Ignore upload and output folders
-uploads/
-output/
-
 # Ignore AWS Lambda layer dependencies
 python/
 
 # Ignore swap files
 *.swp
 *.swo
+
+# Ignore field descriptions file (contains sensitive data)
+field_descriptions.json

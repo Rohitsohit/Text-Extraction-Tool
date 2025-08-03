@@ -11,18 +11,10 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'output'  # Folder where you will save the JSON files
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 
 # S3 configuration
 S3_BUCKET = 'extract-tool'  # Replace with your actual bucket name
 s3 = boto3.client('s3')
-
-
-# Make sure the output folder exists
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 JSON_FILE = "field_descriptions.json"
 

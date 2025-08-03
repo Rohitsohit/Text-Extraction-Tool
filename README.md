@@ -6,10 +6,12 @@ A Flask-based API for extracting structured information from PDF documents (musi
 - Upload PDF files and extract structured text fields
 - Extract from direct file upload or from a file URL (Google Drive supported)
 - Customizable field extraction using OpenAI GPT
+- S3-based file storage
 
 ## Requirements
 - Python 3.8+
 - OpenAI API key
+- AWS S3 bucket configured
 
 ## Installation
 
@@ -30,8 +32,9 @@ A Flask-based API for extracting structured information from PDF documents (musi
      OPENAI_API_KEY=your_openai_api_key_here
      ```
 
-4. **Create required folders:**
-   - The app will automatically create `uploads/` and `output/` folders if they do not exist.
+4. **Configure AWS S3:**
+   - Ensure your AWS credentials are configured
+   - Update the `S3_BUCKET` variable in `app.py` with your bucket name
 
 ## Running the App
 
@@ -46,7 +49,7 @@ The Flask server will start on `http://127.0.0.1:5000/` by default.
 ### 1. Upload a PDF file
 - **POST** `/upload`
 - Form-data: `file` (PDF)
-- Returns: Extracted text and output JSON filename
+- Returns: Extracted text (file stored in S3)
 
 ### 2. Extract from a file URL
 - **POST** `/extract_from_url`
@@ -67,7 +70,8 @@ The Flask server will start on `http://127.0.0.1:5000/` by default.
 ## Notes
 - Only PDF files are currently supported for extraction.
 - Requires a valid OpenAI API key for GPT-based extraction.
-- Output JSON files are saved in the `output/` directory.
+- Files are stored in AWS S3 bucket.
+- Field descriptions are stored locally in `field_descriptions.json`.
 
 ## License
 MIT 
