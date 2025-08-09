@@ -60,23 +60,51 @@ def uploads():
         s3.upload_fileobj(file, S3_BUCKET, filename)
         print("[DEBUG] Upload complete")
 
-        # Use AWS Textract to extract text from PDF in S3
-        print(f"[DEBUG] Calling Textract for S3Object: bucket={S3_BUCKET}, key={filename}")
-        textract_response = textract.detect_document_text(
-            Document={
+        # Start Textract async job
+        print(f"[DEBUG] Starting Textract async job for S3Object: bucket={S3_BUCKET}, key={filename}")
+        start_response = textract.start_document_text_detection(
+            DocumentLocation={
                 'S3Object': {
                     'Bucket': S3_BUCKET,
                     'Name': filename
                 }
             }
         )
-        print("[DEBUG] Textract response received")
+        job_id = start_response['JobId']
+        print(f"[DEBUG] Textract JobId: {job_id}")
+
+        # Poll for job completion
+        import time
+        max_tries = 60
+        tries = 0
+        while tries < max_tries:
+            status_response = textract.get_document_text_detection(JobId=job_id)
+            status = status_response['JobStatus']
+            print(f"[DEBUG] Textract job status: {status}")
+            if status == 'SUCCEEDED':
+                break
+            elif status == 'FAILED':
+                return jsonify({'error': 'Textract job failed'}), 500
+            time.sleep(2)
+            tries += 1
+        else:
+            return jsonify({'error': 'Textract job timed out'}), 500
+
+        # Collect all results (pagination)
+        blocks = []
+        next_token = status_response.get('NextToken')
+        blocks.extend(status_response['Blocks'])
+        while next_token:
+            status_response = textract.get_document_text_detection(JobId=job_id, NextToken=next_token)
+            blocks.extend(status_response['Blocks'])
+            next_token = status_response.get('NextToken')
+
         extracted_text = ' '.join([
             item['DetectedText']
-            for item in textract_response['Blocks']
+            for item in blocks
             if item['BlockType'] == 'LINE' and 'DetectedText' in item
         ])
-        print("[DEBUG] Textract text extraction complete")
+        print("[DEBUG] Textract async text extraction complete")
 
         return jsonify({'file': filename, 'preview': extracted_text})
 
