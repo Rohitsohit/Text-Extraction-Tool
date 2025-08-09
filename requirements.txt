@@ -3,8 +3,8 @@ flask-cors
 requests
 python-dotenv
 openai
-PyMuPDF
+pypdf
 python-docx
 boto3
 botocore
-awsgi 
+aws-wsgi
