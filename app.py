@@ -1,17 +1,15 @@
 # Simple health check route
-
-
 import awsgi
 from flask import Flask, request, jsonify
 import json
-import boto3
+import boto3,time
 import requests
 import tempfile
 from extractor import extract_text_from_document, extract_text_from_pdf
 from flask_cors import CORS
-import os, mimetypes
-from botocore.exceptions import NoCredentialsError, ClientError
-import hashlib
+import os
+import time
+from botocore.exceptions import NoCredentialsError
 
 app = Flask(__name__)
 CORS(app)
@@ -28,95 +26,69 @@ ALLOWED_MIME = {"application/pdf"}
 
 @app.route('/extract', methods=['POST'])
 def uploads():
-    print("[DEBUG] /extract called")
-    
-    if 'file' not in request.files:
-        print("[ERROR] No file found in request")
-        return jsonify({'error': 'No file provided'}), 400
-
     file = request.files['file']
-    if not file.filename:
-        print("[ERROR] No filename provided")
-        return jsonify({'error': 'No selected file'}), 400
 
-    filename = file.filename
-    ext = filename.rsplit('.', 1)[-1].lower()
-    print(f"[DEBUG] Received file: {filename} (ext={ext})")
+    # Save the file to a temporary local path
+    local_path = os.path.join(tempfile.gettempdir(), file.filename)
+    file.save(local_path)
 
-    if ext not in ALLOWED_EXTS:
-        print(f"[ERROR] Unsupported extension: {ext}")
-        return jsonify({'error': 'Unsupported file type'}), 400
+    # Define bucket and key for clarity
+    bucket = S3_BUCKET
+    key = file.filename
 
-    guessed_mime = mimetypes.guess_type(filename)[0] or ""
-    print(f"[DEBUG] Guessed MIME type: {guessed_mime}")
-    if guessed_mime and guessed_mime not in ALLOWED_MIME:
-        print(f"[ERROR] Unsupported MIME type: {guessed_mime}")
-        return jsonify({'error': 'Unsupported content type'}), 400
+    # 1) upload to S3
+    s3.upload_file(local_path, bucket, key)
 
-    tmp_path = None
-    try:
-        # Upload to S3
-        print(f"[DEBUG] Uploading to S3: bucket={S3_BUCKET}, key={filename}")
-        s3.upload_fileobj(file, S3_BUCKET, filename)
-        print("[DEBUG] Upload complete")
+    # 2) start async text detection
+    job = textract.start_document_text_detection(
+        DocumentLocation={"S3Object": {"Bucket": bucket, "Name": key}}
+    )
+    job_id = job["JobId"]
 
-        # Start Textract async job
-        print(f"[DEBUG] Starting Textract async job for S3Object: bucket={S3_BUCKET}, key={filename}")
-        start_response = textract.start_document_text_detection(
-            DocumentLocation={
-                'S3Object': {
-                    'Bucket': S3_BUCKET,
-                    'Name': filename
-                }
-            }
+    # 3) poll until done
+    while True:
+        resp = textract.get_document_text_detection(JobId=job_id, MaxResults=1000)
+        status = resp["JobStatus"]
+        if status in ("SUCCEEDED", "FAILED", "PARTIAL_SUCCESS"):
+            break
+        time.sleep(2)
+
+    if status != "SUCCEEDED":
+        raise RuntimeError(f"Textract job ended with status: {status}")
+
+    # 4) collect all pages using NextToken
+    blocks = resp["Blocks"]
+    next_token = resp.get("NextToken")
+    while next_token:
+        resp = textract.get_document_text_detection(
+            JobId=job_id, MaxResults=1000, NextToken=next_token
         )
-        job_id = start_response['JobId']
-        print(f"[DEBUG] Textract JobId: {job_id}")
+        blocks.extend(resp["Blocks"])
+        next_token = resp.get("NextToken")
 
-        # Poll for job completion
-        import time
-        max_tries = 60
-        tries = 0
-        while tries < max_tries:
-            status_response = textract.get_document_text_detection(JobId=job_id)
-            status = status_response['JobStatus']
-            print(f"[DEBUG] Textract job status: {status}")
-            if status == 'SUCCEEDED':
-                break
-            elif status == 'FAILED':
-                return jsonify({'error': 'Textract job failed'}), 500
-            time.sleep(2)
-            tries += 1
-        else:
-            return jsonify({'error': 'Textract job timed out'}), 500
+    # 5) collect lines by page
+    page_text_dict = {}
+    for b in blocks:
+        if b["BlockType"] == "LINE" and "Text" in b:
+            page_num = b.get("Page", 1)
+            if page_num not in page_text_dict:
+                page_text_dict[page_num] = []
+            page_text_dict[page_num].append(b["Text"])
 
-        # Collect all results (pagination)
-        blocks = []
-        next_token = status_response.get('NextToken')
-        blocks.extend(status_response['Blocks'])
-        while next_token:
-            status_response = textract.get_document_text_detection(JobId=job_id, NextToken=next_token)
-            blocks.extend(status_response['Blocks'])
-            next_token = status_response.get('NextToken')
+    # Format as {page_number: text}
+    preview = extract_text_from_document(page_text_dict)
 
-        extracted_text = ' '.join([
-            item['DetectedText']
-            for item in blocks
-            if item['BlockType'] == 'LINE' and 'DetectedText' in item
-        ])
-        print("[DEBUG] Textract async text extraction complete")
+    # Remove 'error' and 'raw' keys if present in preview
+    if isinstance(preview, dict):
+        preview.pop('error', None)
+        preview.pop('raw', None)
 
-        return jsonify({'file': filename, 'preview': extracted_text})
-
-    except NoCredentialsError:
-        print("[ERROR] S3 credentials not found")
-        return jsonify({'error': 'S3 credentials not found'}), 500
-    except ClientError as e:
-        print(f"[ERROR] AWS ClientError: {e}")
-        return jsonify({'error': f'AWS error: {e}'}), 500
-    except Exception as e:
-        print(f"[ERROR] Unexpected error: {e}")
-        return jsonify({'error': f'Unexpected error: {e}'}), 500
+    if not preview:
+        return jsonify({"error": "No text detected"}), 200
+    return jsonify({
+        'file': file.filename,
+        'preview': preview
+    })
 
 
 @app.route('/upload', methods=['POST'])
