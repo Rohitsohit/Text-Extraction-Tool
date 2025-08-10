@@ -77,12 +77,7 @@ def uploads():
 
     # Format as {page_number: text}
     preview = extract_text_from_document(page_text_dict)
-
-    # Remove 'error' and 'raw' keys if present in preview
-    if isinstance(preview, dict):
-        preview.pop('error', None)
-        preview.pop('raw', None)
-
+    print("Preview extracted text:", preview)
     if not preview:
         return jsonify({"error": "No text detected"}), 200
     return jsonify({

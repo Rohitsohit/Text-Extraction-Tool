@@ -32,11 +32,9 @@ def extract_text_from_document(text):
         return {"error": "No text provided for extraction"}
     
     open_ai_Data = extract_field_information(text)
-    print(open_ai_Data)
-    try:
-        return json.loads(open_ai_Data)
-    except Exception:
-        return {"error": "Text not extract able", "raw": open_ai_Data}
+    if isinstance(open_ai_Data, dict):
+        return open_ai_Data
+    return json.loads(open_ai_Data)
 
     
 
