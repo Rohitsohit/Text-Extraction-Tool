@@ -1,11 +1,10 @@
-# Simple health check route
 import awsgi
 from flask import Flask, request, jsonify
 import json
 import boto3,time
 import requests
 import tempfile
-from extractor import extract_text_from_document, extract_text_from_pdf
+from extractor import extract_text_from_pdf
 from flask_cors import CORS
 import os
 import time
@@ -15,7 +14,7 @@ app = Flask(__name__)
 CORS(app)
 
 # S3 configuration
-S3_BUCKET = 'extract-tool'  # Replace with your actual bucket name
+S3_BUCKET = os.getenv("BUCKET_NAME")  # Replace with your actual bucket name
 s3 = boto3.client('s3')
 textract = boto3.client('textract')
 
@@ -76,7 +75,7 @@ def uploads():
             page_text_dict[page_num].append(b["Text"])
 
     # Format as {page_number: text}
-    preview = extract_text_from_document(page_text_dict)
+    preview = extract_text_from_pdf(page_text_dict)
     print("Preview extracted text:", preview)
     if not preview:
         return jsonify({"error": "No text detected"}), 200
@@ -84,57 +83,6 @@ def uploads():
         'file': file.filename,
         'preview': preview
     })
-
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-
-    filename = file.filename
-    
-    ext = filename.rsplit('.', 1)[-1].lower()
-
-        # Upload file to S3
-    try:
-        s3.upload_fileobj(file, S3_BUCKET, filename)
-    except NoCredentialsError:
-        return jsonify({'error': 'S3 credentials not found'}), 500
-    except Exception as e:
-        return jsonify({'error': f'Failed to upload to S3: {str(e)}'}), 500
-
-    # Download from S3 to temp file for processing
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.' + ext) as tmp:
-        try:
-            s3.download_file(S3_BUCKET, filename, tmp.name)
-        except Exception as e:
-            return jsonify({'error': f'Failed to download from S3: {str(e)}'}), 500
-        tmp_path = tmp.name
-
-
-
-    if ext == 'pdf':
-        # extracted_text = "file saved in s3"
-        extracted_text = extract_text_from_pdf(tmp_path)
-    #elif ext == 'docx':
-        #extracted_text = extract_text_from_docx(file_path)
-    else:
-        os.remove(tmp_path)
-        return jsonify({'error': 'Unsupported file type'}), 400
-
-    os.remove(tmp_path)
-    
-
-    return jsonify({
-        'file': filename,
-        'preview': extracted_text  
-    })
-
-
 
 
 
