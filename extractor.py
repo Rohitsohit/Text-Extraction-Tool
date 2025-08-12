@@ -3,7 +3,7 @@ from pypdf import PdfReader
 from gpt_extractor import extract_field_information
 import json
 
-from docx import Document
+
 
 
 def extract_text_from_pdf(text):
@@ -18,16 +18,8 @@ def extract_text_from_pdf(text):
     
 def extract_text_from_word(path):
     print("Extracting text from Word document:", path)
-    doc = Document(path)
-    text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-
-    page_text = {
-        1: {
-            "page_number": 1,
-            "text": text
-        }
-    }
-    return page_text
+    
+    return path
 
 
 
