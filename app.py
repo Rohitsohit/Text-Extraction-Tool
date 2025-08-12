@@ -3,6 +3,8 @@ from flask import Flask, request, jsonify
 import json
 import boto3,time
 import requests
+import urllib.parse
+import re
 import tempfile
 from extractor import extract_text_from_pdf
 from flask_cors import CORS
@@ -23,28 +25,23 @@ JSON_FILE = "field_descriptions.json"
 ALLOWED_EXTS = {"pdf"}
 ALLOWED_MIME = {"application/pdf"}
 
-@app.route('/extract', methods=['POST'])
-def uploads():
-    file = request.files['file']
+def textract_lines_by_page_from_file(file, bucket=S3_BUCKET):
 
     # Save the file to a temporary local path
     local_path = os.path.join(tempfile.gettempdir(), file.filename)
     file.save(local_path)
 
-    # Define bucket and key for clarity
-    bucket = S3_BUCKET
+    # Upload to S3
     key = file.filename
-
-    # 1) upload to S3
     s3.upload_file(local_path, bucket, key)
 
-    # 2) start async text detection
+    # Start async text detection
     job = textract.start_document_text_detection(
         DocumentLocation={"S3Object": {"Bucket": bucket, "Name": key}}
     )
     job_id = job["JobId"]
 
-    # 3) poll until done
+    # Poll until done
     while True:
         resp = textract.get_document_text_detection(JobId=job_id, MaxResults=1000)
         status = resp["JobStatus"]
@@ -55,7 +52,7 @@ def uploads():
     if status != "SUCCEEDED":
         raise RuntimeError(f"Textract job ended with status: {status}")
 
-    # 4) collect all pages using NextToken
+    # Collect all pages using NextToken
     blocks = resp["Blocks"]
     next_token = resp.get("NextToken")
     while next_token:
@@ -65,74 +62,124 @@ def uploads():
         blocks.extend(resp["Blocks"])
         next_token = resp.get("NextToken")
 
-    # 5) collect lines by page
+    # Collect lines by page
     page_text_dict = {}
     for b in blocks:
-        if b["BlockType"] == "LINE" and "Text" in b:
+        if b.get("BlockType") == "LINE" and "Text" in b:
             page_num = b.get("Page", 1)
-            if page_num not in page_text_dict:
-                page_text_dict[page_num] = []
-            page_text_dict[page_num].append(b["Text"])
+            page_text_dict.setdefault(page_num, []).append(b["Text"])
 
-    # Format as {page_number: text}
+    return page_text_dict
+
+@app.route('/extract', methods=['POST'])
+def uploads():
+    file = request.files['file']
+
+    # Textract helper
+    page_text_dict = textract_lines_by_page_from_file(file, bucket=S3_BUCKET)
+
+    # Format as preview (existing utility)
     preview = extract_text_from_pdf(page_text_dict)
     print("Preview extracted text:", preview)
+
     if not preview:
         return jsonify({"error": "No text detected"}), 200
+
     return jsonify({
         'file': file.filename,
         'preview': preview
     })
 
 
+def _normalize_to_direct_download(url: str) -> str:
+    """
+    If the URL is a Google Drive share/view URL, convert it to a direct download link.
+    Otherwise, return the original URL.
+    Supported forms:
+      - https://drive.google.com/file/d/<FILE_ID>/view?...  -> uc?export=download&id=<FILE_ID>
+      - https://drive.google.com/open?id=<FILE_ID>          -> uc?export=download&id=<FILE_ID>
+      - https://drive.google.com/uc?id=<FILE_ID>&export=download -> unchanged
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+        host = parsed.netloc.lower()
+        if "drive.google.com" not in host:
+            return url
+        # Already a uc direct link with id
+        if parsed.path.startswith("/uc"):
+            qs = urllib.parse.parse_qs(parsed.query)
+            if "id" in qs:
+                return f"https://drive.google.com/uc?export=download&id={qs['id'][0]}"
+            return url
+        # /file/d/<id>/view or /file/d/<id>/
+        m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", parsed.path)
+        if m:
+            file_id = m.group(1)
+            return f"https://drive.google.com/uc?export=download&id={file_id}"
+        # /open?id=<id>
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "id" in qs:
+            return f"https://drive.google.com/uc?export=download&id={qs['id'][0]}"
+        return url
+    except Exception:
+        return url
 
 # Extract text from file URL endpoint
 @app.route('/extract_from_url', methods=['POST'])
 def extract_from_url():
-    data = request.get_json()
+    data = request.get_json(force=True)
     file_url = data.get('url')
-    
-
+    # Normalize Google Drive share links to direct-download
+    file_url = _normalize_to_direct_download(file_url)
     if not file_url:
-        return jsonify({'error': 'No URL provided'}), 200
-    
-
-        
-    if "drive.google.com" in file_url and "/file/d/" in file_url:
-        try:
-            file_id = file_url.split("/file/d/")[1].split("/")[0]
-            file_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-        except Exception:
-            return jsonify({'error': 'Failed to parse Google Drive link'}), 400
-
-
+        return jsonify({"error": "Missing 'url' in request body"}), 400
     try:
-        response = requests.get(file_url)
-       
-        response.raise_for_status()
+        # Download the file (supports pre‑signed S3, public URLs, and normalized Google Drive links)
+        resp = requests.get(file_url, stream=True, timeout=30)
+        resp.raise_for_status()
+        content = resp.content
+        # Determine a filename
+        # 1) Try Content-Disposition
+        cd = resp.headers.get('Content-Disposition', '')
+        filename = None
+        if 'filename=' in cd:
+            filename = cd.split('filename=')[-1].strip('"; ')
+        # 2) Fallback to URL path
+        if not filename:
+            parsed = urllib.parse.urlparse(file_url)
+            path_name = os.path.basename(parsed.path)
+            filename = path_name or "document.pdf"
+        # Normalize extension (default to pdf)
+        if '.' in filename:
+            ext = filename.rsplit('.', 1)[-1].lower()
+        else:
+            ext = 'pdf'
+            filename = f"{filename}.pdf"
+        # Enforce allowed extensions
+        if ext not in ALLOWED_EXTS:
+            return jsonify({"error": f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTS)}"}), 400
+        # Create a minimal FileStorage-like adapter so we can reuse the existing helper
+        class _DownloadedFileAdapter:
+            def __init__(self, name, data_bytes):
+                self.filename = name
+                self._data = data_bytes
+            def save(self, dst_path):
+                with open(dst_path, "wb") as f:
+                    f.write(self._data)
+        downloaded = _DownloadedFileAdapter(filename, content)
+        # Reuse the same Textract flow
+        page_text_dict = textract_lines_by_page_from_file(downloaded, bucket=S3_BUCKET)
+        # Format preview with existing utility
+        # preview = extract_text_from_pdf(page_text_dict)
+        return jsonify({
+            "url": file_url,
+            "file": filename,
+            "preview": page_text_dict
+        }), 200
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Failed to download file: {str(e)}"}), 400
     except Exception as e:
-        return jsonify({'error': f'Failed to download file: {str(e)}'}), 200
-
-    print("******************** : ",response.raise_for_status()," :****************")
-
-    ext = file_url.split('.')[-1].lower()
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.' + ext) as tmp:
-        tmp.write(response.content)
-        tmp_path = tmp.name
-
-    if ext == 'pdf':
-        extracted_text = extract_text_from_pdf(tmp_path)
-    #elif ext == 'docx':
-        #extracted_text = extract_text_from_docx(tmp_path)
-    else:
-        return jsonify({'error': 'Unsupported file type'}), 200
-
-    os.remove(tmp_path)
-
-    return jsonify({
-        'url': file_url,
-        'text': extracted_text
-    })
+        return jsonify({"error": f"Extraction failed: {str(e)}"}), 500
 
 @app.route("/get_fields", methods=["GET"])
 def get_fields():
