@@ -170,11 +170,11 @@ def extract_from_url():
         # Reuse the same Textract flow
         page_text_dict = textract_lines_by_page_from_file(downloaded, bucket=S3_BUCKET)
         # Format preview with existing utility
-        # preview = extract_text_from_pdf(page_text_dict)
+        preview = extract_text_from_pdf(page_text_dict)
         return jsonify({
             "url": file_url,
             "file": filename,
-            "preview": page_text_dict
+            "preview": preview
         }), 200
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"Failed to download file: {str(e)}"}), 400
