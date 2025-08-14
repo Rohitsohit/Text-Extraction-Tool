@@ -171,7 +171,7 @@ def extract_from_url():
         page_text_dict = textract_lines_by_page_from_file(downloaded, bucket=S3_BUCKET)
         # Format preview with existing utility
         preview = extract_text_from_pdf(page_text_dict)
-        databaseResponse = save_data_to_database(preview)
+        databaseResponse = save_data_to_database(preview,filename )
         return jsonify({
             "url": file_url,
             "file": filename,
