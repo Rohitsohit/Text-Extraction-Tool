@@ -170,7 +170,7 @@ def uploads():
 
     # Format as preview (existing utility)
     preview = extract_text_from_pdf(page_text_dict)
-    databaseResponse = save_data_to_database(json_str,file.filename)
+    databaseResponse = save_data_to_database(preview,file.filename)
     return jsonify({
         'file': file.filename,
         'DatabaseResponse': databaseResponse.get("message")+" in database",
