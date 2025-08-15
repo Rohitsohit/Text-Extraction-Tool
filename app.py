@@ -73,6 +73,94 @@ def textract_lines_by_page_from_file(file, bucket=S3_BUCKET):
     return page_text_dict
 
 
+json_str = {
+    "Alternative Counterparties": {
+        "page_number": 1,
+        "value": "RCA Records, Sony Music Entertainment"
+    },
+    "Artist Name": {
+        "page_number": 1,
+        "value": "A$AP Mob"
+    },
+    "Classification of Recoupment Language": {
+        "page_number": 4,
+        "value": "No royalty shall be payable to you hereunder until Company has recouped all Recording Costs incurred in connection with the Album at the \"net artist\" rate (i.e., Our Basic Rate less the Producer Basic Rate and the royalty rate payable to all other producers, engineers, mixers, and other royalty participants) (excluding the Advance and any \"in-pocket\" Artist advances. After recoupment of such Recording Costs as aforesaid, royalties shall be payable to you hereunder for all records sold for which royalties are payable, retroactively from the first such record sold, subject to recoupment from such royalties of the Advance."
+    },
+    "Client Party": {
+        "page_number": 1,
+        "value": "19/20 Music, LLC"
+    },
+    "Direct Counterparty": {
+        "page_number": 1,
+        "value": "ASAP WORLDWIDE, LLC"
+    },
+    "Distributor": {
+        "page_number": 1,
+        "value": "RCA Records"
+    },
+    "Document Name": {
+        "page_number": 1,
+        "value": "A$AP Mob - Cozy Tapes: Vol. 2 FX"
+    },
+    "Effective Date": {
+        "page_number": 1,
+        "value": "August 1, 2017"
+    },
+    "Execution Status": {
+        "page_number": 9,
+        "value": "FX"
+    },
+    "Label": {
+        "page_number": 1,
+        "value": "Sony Music Entertainment"
+    },
+    "Lawyer Information": {
+        "page_number": 1,
+        "value": {
+            "client_lawyer": "C/O B. Lawrence Watkins & Associates, P.C., 325 Edgewood Avenue, SE, Suite 200, Atlanta, Georgia 30312",
+            "counterparty_lawyer": "C/O Davis Shapiro Lewit Grabel Leven Granderson & Blake, LLP, 150 S. Rodeo Drive, Suite 200, Beverly Hills, CA 90212"
+        }
+    },
+    "Legal Advance": {
+        "page_number": 3,
+        "value": "$1,000"
+    },
+    "Organization Counting Units": {
+        "page_number": 4,
+        "value": "USNRC"
+    },
+    "Producer Advance Legal Recoupment": {
+        "page_number": 3,
+        "value": "$6,000"
+    },
+    "Producer Royalty Points": {
+        "page_number": 4,
+        "value": "3% of the Royalty Base Price"
+    },
+    "Recoupment Classification": {
+        "page_number": 3,
+        "value": "non-returnable but recoupable"
+    },
+    "Single/Multisong Line": {
+        "page_number": 1,
+        "value": "one (1) master recording"
+    },
+    "Song Title": {
+        "page_number": 1,
+        "value": "Bahamas"
+    },
+    "Third Party Money": {
+        "page_number": 13,
+        "value": "15%"
+    },
+    "Type of Royalty": {
+        "page_number": 4,
+        "value": "NAR"
+    }
+}
+
+
+
 @app.route('/extract', methods=['POST'])
 def uploads():
     file = request.files['file']
@@ -82,12 +170,11 @@ def uploads():
 
     # Format as preview (existing utility)
     preview = extract_text_from_pdf(page_text_dict)
-    databaseResponse = save_data_to_database(preview,file.filename)
-
+    databaseResponse = save_data_to_database(json_str,file.filename)
     return jsonify({
         'file': file.filename,
-        'DatabaseResponse': databaseResponse,
-        # 'preview': preview
+        'DatabaseResponse': databaseResponse.get("message")+" in database",
+        'preview': preview
     })
 
 
@@ -175,8 +262,8 @@ def extract_from_url():
         return jsonify({
             "url": file_url,
             "file": filename,
-            "DatabaseResponse": databaseResponse,
-            # "preview": preview
+            "DatabaseResponse": databaseResponse.get("message")+" in database",
+            "preview": preview
         }), 200
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"Failed to download file: {str(e)}"}), 400
