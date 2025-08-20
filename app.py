@@ -31,16 +31,19 @@ def textract_lines_by_page_from_file(file, bucket=S3_BUCKET):
     # Save the file to a temporary local path
     local_path = os.path.join(tempfile.gettempdir(), file.filename)
     file.save(local_path)
+    print(f"[DEBUG] Saved file locally at: {local_path}")
 
     # Upload to S3
     key = file.filename
     s3.upload_file(local_path, bucket, key)
+    print(f"[DEBUG] Upload successful: s3://{bucket}/{key}")
 
     # Start async text detection
     job = textract.start_document_text_detection(
         DocumentLocation={"S3Object": {"Bucket": bucket, "Name": key}}
     )
     job_id = job["JobId"]
+    print(f"[DEBUG] Started Textract job with JobId: {job_id}")
 
     # Poll until done
     while True:
@@ -70,7 +73,17 @@ def textract_lines_by_page_from_file(file, bucket=S3_BUCKET):
             page_num = b.get("Page", 1)
             page_text_dict.setdefault(page_num, []).append(b["Text"])
 
-    return page_text_dict
+    if not any(page_text_dict.values()):
+        return {"error": "No extractable text found in the document."}
+    else:
+        sample_preview = []
+        for lines in page_text_dict.values():
+            sample_preview.extend(lines)
+            if len(sample_preview) >= 5:
+                break
+        print("[DEBUG] Sample extracted lines:", sample_preview[:5])
+        return page_text_dict
+    
 
 
 json_str = {
@@ -164,11 +177,19 @@ json_str = {
 @app.route('/extract', methods=['POST'])
 def uploads():
     file = request.files['file']
-
+    # Validate file type
+    filename = file.filename.lower()
+    if not filename.endswith('.pdf'):
+        if filename.endswith(('.doc', '.docx')):
+            print(f"[DEBUG] Received file: {file.filename}")
+            return jsonify({"error": "Currently, only PDF files are supported. Word document support is coming soon."}), 400
+        else:
+            return jsonify({"error": "File type not supported. Only PDF is allowed."}), 400
+    print(f"[DEBUG] Received file: {file.filename}")
+    if not file:
+        return jsonify({"error": "No file provided"}), 400
     # Textract helper
     page_text_dict = textract_lines_by_page_from_file(file, bucket=S3_BUCKET)
-
-    # Format as preview (existing utility)
     preview = extract_text_from_pdf(page_text_dict)
     databaseResponse = save_data_to_database(preview,file.filename)
     return jsonify({

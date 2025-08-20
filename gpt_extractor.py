@@ -10,7 +10,8 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def extract_field_information(page_text):
     prompt=build_final_document_prompt(page_text)
-
+    print(f"[DEBUG] Sending prompt to OpenAI: {prompt[:100]}...")  # Limit to first 100 characters for debug
+    # Call OpenAI API to extract field information
     response = client.chat.completions.create(
     model="gpt-4-1106-preview",
     messages=[
@@ -20,7 +21,7 @@ def extract_field_information(page_text):
     temperature=0.2
     )
     content = response.choices[0].message.content
-    print(content)
+    print(f"[DEBUG] Received response from OpenAI: {content.strip()}")
     # Remove code block markers if present
     if content.strip().startswith('```'):
         lines = content.strip().splitlines()
